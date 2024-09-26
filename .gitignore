@@ -1,0 +1,8 @@
+# Virtual environment
+myenv/
+venv/
+*.pyc
+__pycache__/
+
+# macOS specific
+.DS_Store

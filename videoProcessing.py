@@ -43,4 +43,4 @@ def extract_scoreboard(video_path, output_path):
     cv2.destroyAllWindows()
 
 # Usage
-extract_scoreboard('test.mp4', 'output1.mp4')
+extract_scoreboard(r'C:\Users\HP\Downloads\vd2.mp4', 'output.mp4')

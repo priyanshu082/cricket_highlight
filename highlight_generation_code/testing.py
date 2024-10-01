@@ -75,10 +75,10 @@ def extract_highlight_videos(video_path, output_folder):
                         # Calculate the start and end time for the highlight
                         start_time = max(0, frame_count - len(frame_buffer)) / fps
                         end_time = frame_count / fps + 8  # Add 8 seconds post event
-                        timestamps.append((start_time - 4, end_time-4))
+                        timestamps.append((start_time - 10, end_time-4))
                         
                         highlight_type = "Boundary" if runs_diff in {4, 6} else "Wicket"
-                        print(f"{highlight_type} detected: {score_history[-1]} to {current_score}. Highlight from {start_time-4} to {end_time-4} seconds.")
+                        print(f"{highlight_type} detected: {score_history[-1]} to {current_score}. Highlight from {start_time-10} to {end_time-4} seconds.")
                         highlight_count += 1
 
             if current_score:
@@ -109,6 +109,6 @@ def extract_highlight_videos(video_path, output_folder):
         print("No highlights detected.")
 
 # Usage
-video_path = 'cricket_match.mp4'  # Replace with your full video path
+video_path = 'test.mp4'  # Replace with your full video path
 output_folder = 'extracted_highlights'  # Replace with your desired output folder
 extract_highlight_videos(video_path, output_folder)

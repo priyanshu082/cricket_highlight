@@ -2,113 +2,199 @@ import cv2
 import numpy as np
 import pytesseract
 import re
-from collections import deque
 import os
 import subprocess
+from datetime import datetime
 
-# Function to locate the scoreboard region in the video frame
-def locate_scoreboard(frame):
-    height, width = frame.shape[:2]
-    top = int(height * 0.93)
-    bottom = int(height * 0.97)
-    left = int(width * 0.07)
-    right = int(width * 0.30)
-    return (top, bottom, left, right)
-
-# Function to apply OCR to extract the score from the scoreboard region
-def apply_ocr(frame):
-    scoreboard_region = locate_scoreboard(frame)
-    roi = frame[scoreboard_region[0]:scoreboard_region[1], scoreboard_region[2]:scoreboard_region[3]]
+class DebugScoreboardOCR:
+    def __init__(self, debug_folder=None):
+        self.last_valid_score = None
+        self.debug_folder = debug_folder
+        self.frame_count = 0
+        
+        # Create debug folder if specified
+        if debug_folder:
+            os.makedirs(debug_folder, exist_ok=True)
     
-    gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-    gray = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
-    gray = cv2.GaussianBlur(gray, (5, 5), 0)
-    _, gray = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
-    
-    custom_config = r'--oem 3 --psm 6 -c tessedit_char_whitelist=0123456789-'
-    text = pytesseract.image_to_string(gray, config=custom_config)
-    
-    score_match = re.search(r'\d{1,3}-\d{1,2}', text)
-    return score_match.group(0) if score_match else None
+    def extract_score(self, frame):
+        """Extract score with extensive debugging"""
+        self.frame_count += 1
+        height, width = frame.shape[:2]
+        
+        # Define ROI
+        top = int(height * 0.93)
+        bottom = int(height * 0.97)
+        left = int(width * 0.13)
+        right = int(width * 0.195)
+        
+        # Extract ROI
+        roi = frame[top:bottom, left:right]
+        
+        # Save original ROI for debugging
+        # if self.debug_folder and self.frame_count % 30 == 0:
+        #     cv2.imwrite(os.path.join(self.debug_folder, f'original_roi_{self.frame_count}.jpg'), roi)
+        
+        # Basic preprocessing
+        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        resized = cv2.resize(gray, None, fx=2, fy=2, interpolation=cv2.INTER_LINEAR)
+        _, binary = cv2.threshold(resized, 150, 255, cv2.THRESH_BINARY)
+        
+        # Save preprocessed image for debugging
+        # if self.debug_folder and self.frame_count % 30 == 0:
+        #     cv2.imwrite(os.path.join(self.debug_folder, f'preprocessed_{self.frame_count}.jpg'), binary)
+        
+        # OCR with minimal configuration
+        custom_config = r'--oem 3 --psm 6'
+        text = pytesseract.image_to_string(binary, config=custom_config)
+        
+        # Log OCR output
+        if self.debug_folder and self.frame_count % 30 == 0:
+            with open(os.path.join(self.debug_folder, 'ocr_log.txt'), 'a') as f:
+                f.write(f"\nFrame {self.frame_count}:\nRaw OCR output: {text}\n")
+        
+        # Try to find score pattern
+        score_match = re.search(r'(\d{1,3})[^0-9a-zA-Z]*(\d{1,2})', text)
+        
+        if score_match:
+            try:
+                runs = int(score_match.group(1))
+                wickets = int(score_match.group(2))
+                
+                if 0 <= runs <= 999 and 0 <= wickets <= 10:
+                    score = f"{runs}-{wickets}"
+                    
+                    # Log valid score
+                    if self.debug_folder:
+                        with open(os.path.join(self.debug_folder, 'score_log.txt'), 'a') as f:
+                            f.write(f"Frame {self.frame_count}: Valid score detected: {score}\n")
+                    
+                    self.last_valid_score = score
+                    return score
+            except ValueError:
+                pass
+        
+        return self.last_valid_score
 
-# Function to extract batting score and wicket count from a score string (e.g., "31-1")
-def parse_score(score):
-    if score:
-        runs, wickets = map(int, score.split('-'))
-        return runs, wickets
-    return None, None
-
-# Function to extract highlight videos with audio based on score changes
-def extract_highlight_videos(video_path, output_folder):
+def extract_highlights(video_path, output_folder, debug=True):
+    """Extract highlights with extensive debugging"""
+    
+    # Create debug folder
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    debug_folder = os.path.join(output_folder, f"debug")
+    if debug:
+        os.makedirs(debug_folder, exist_ok=True)
+    
+    # Initialize video capture
     cap = cv2.VideoCapture(video_path)
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    # fps = int(cap.get(cv2.CAP_PROP_FPS))
+    fps=30
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    
+    # Initialize OCR with debug folder
+    ocr = DebugScoreboardOCR(debug_folder if debug else None)
+    
     frame_count = 0
-    highlight_count = 0
-    skip_frames = 30  # Process every 30th frame
-
-    frame_buffer = deque(maxlen=fps * 8)  # Store 8 seconds of frames
-    score_history = deque(maxlen=2)  # Store current and previous score
-
-    timestamps = []  # To store the start and end time of each highlight
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        frame_count += 1
-        frame_buffer.append(frame)
-
-        if frame_count % skip_frames == 0:
-            current_score = apply_ocr(frame)
+    prev_score = None
+    highlights = []
+    
+    try:
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
             
-            if current_score and len(score_history) == 2:
-                prev_runs, prev_wickets = parse_score(score_history[-1])
-                curr_runs, curr_wickets = parse_score(current_score)
-
-                if prev_runs is not None and curr_runs is not None:
-                    # Check for boundary conditions (4 or 6 runs) and wickets
-                    runs_diff = curr_runs - prev_runs
-                    wicket_diff = curr_wickets - prev_wickets
-
-                    if runs_diff in {4, 6} or wicket_diff > 0:
-                        # Calculate the start and end time for the highlight
-                        start_time = max(0, frame_count - len(frame_buffer)) / fps
-                        end_time = frame_count / fps + 8  # Add 8 seconds post event
-                        timestamps.append((start_time - 10, end_time-4))
+            frame_count += 1
+            
+            # Process every 15th frame
+            if frame_count % 15 == 0:
+                # Get current score
+                current_score_text = ocr.extract_score(frame)
+                
+                # Log progress
+                if frame_count % 150 == 0:
+                    progress = (frame_count / total_frames) * 100
+                    print(f"Progress: {progress:.1f}% - Current Score: {current_score_text}")
+                
+                # Process score if detected
+                if current_score_text and prev_score:
+                    try:
+                        curr_runs, curr_wickets = map(int, current_score_text.split('-'))
+                        prev_runs, prev_wickets = map(int, prev_score.split('-'))
                         
-                        highlight_type = "Boundary" if runs_diff in {4, 6} else "Wicket"
-                        print(f"{highlight_type} detected: {score_history[-1]} to {current_score}. Highlight from {start_time-10} to {end_time-4} seconds.")
-                        highlight_count += 1
+                        # Detect significant events
+                        runs_diff = curr_runs - prev_runs
+                        wickets_diff = curr_wickets - prev_wickets
+                        
+                        if runs_diff in {4, 6} or wickets_diff > 0:
+                            # Calculate actual event frame
+                            event_frame = frame_count
 
-            if current_score:
-                score_history.append(current_score)
+                            # Calculate start and end frames, ensuring we don't go out of bounds
+                            start_frame = max(1, event_frame - (fps * 11))  # 12 seconds before
+                            end_frame = min(total_frames, event_frame + (fps * 6))  # 8 seconds after
+                            
+                            event_type = 'Wicket' if wickets_diff > 0 else f'Boundary ({runs_diff} runs)'
+                            
+                            highlights.append({
+                                'start_frame': start_frame,
+                                'end_frame': end_frame,
+                                'event_type': event_type,
+                                'score_change': f'{prev_score} to {current_score_text}',
+                                'event_frame': event_frame  # Store the actual event frame for verification
+                            })
+                            
+                            # Debug output using print statements
+                            if debug:
+                                with open(os.path.join(debug_folder, 'highlights_log.txt'), 'a') as f:
+                                    f.write(f"\nHighlight detected:\n")
+                                    f.write(f"Event Frame: {event_frame} ({event_frame/fps:.1f}s)\n")
+                                    f.write(f"Start Frame: {start_frame} ({start_frame/fps:.1f}s)\n")
+                                    f.write(f"End Frame: {end_frame} ({end_frame/fps:.1f}s)\n")
+                                    f.write(f"Score Change: {prev_score} to {current_score_text}\n")
 
-    cap.release()
-    cv2.destroyAllWindows()
-
-    # Use ffmpeg to extract clips with audio
-    if timestamps:
-        if not os.path.exists(output_folder):
-            os.makedirs(output_folder)
-
-        for idx, (start, end) in enumerate(timestamps):
-            output_file = os.path.join(output_folder, f"highlight_{idx + 1}.mp4")
+                
+                    except ValueError as e:
+                        if debug:
+                            with open(os.path.join(debug_folder, 'error_log.txt'), 'a') as f:
+                                f.write(f"Error processing scores at frame {frame_count}: {str(e)}\n")
+                
+                prev_score = current_score_text
+    
+    finally:
+        cap.release()
+    
+    # Extract highlight clips
+    if highlights:
+        highlight_folder = os.path.join(output_folder, f"highlights")
+        os.makedirs(highlight_folder, exist_ok=True)
+        
+        for idx, highlight in enumerate(highlights, 1):
+            output_file = os.path.join(highlight_folder, f"highlight_{idx}.mp4")
+            start_time = highlight['start_frame'] / fps
+            end_time = highlight['end_frame'] / fps
+            
             command = [
-                'ffmpeg', '-y',  # Overwrite output files if exist
-                '-i', video_path,  # Input video path
-                '-ss', str(start),  # Start time
-                '-to', str(end),  # End time
-                '-c:v', 'libx264',  # Video codec
-                '-c:a', 'aac',  # Audio codec
-                output_file  # Output file path
+                'ffmpeg', '-y',
+                '-ss', str(highlight['start_frame'] / fps),  # Convert frames to seconds
+                '-i', video_path,  # Input file
+                '-t', str((highlight['end_frame'] - highlight['start_frame']) / fps),  # Duration instead of end time
+                '-c:v', 'libx264',
+                '-c:a', 'aac',
+                output_file
             ]
+            
             subprocess.run(command)
-            print(f"Highlight saved: {output_file}")
-    else:
-        print("No highlights detected.")
+    
+    return len(highlights)
 
 # Usage
-video_path = 'test.mp4'  # Replace with your full video path
-output_folder = 'extracted_highlights'  # Replace with your desired output folder
-extract_highlight_videos(video_path, output_folder)
+if __name__ == "__main__":
+    video_path = 'test.mp4'  # Replace with your video path
+    output_folder = 'extracted_details'
+    
+    print("Starting highlight extraction with debug mode...")
+    num_highlights = extract_highlights(video_path, output_folder, debug=True)
+    
+    print(f"\nExtraction complete!")
+    print(f"Number of highlights extracted: {num_highlights}")
+    print(f"Check the debug folder for detailed logs and intermediate images")

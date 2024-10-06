@@ -14,8 +14,8 @@ def extract_scoreboard(video_path, output_path):
     # Define the scoreboard region
     top = int(height * 0.93)
     bottom = int(height * 0.97)
-    left = int(width * 0.07)
-    right = int(width * 0.30)
+    left = int(width * 0.13)
+    right = int(width * 0.195)
     scoreboard_region = (top, bottom, left, right)
     
     # Calculate the height of the cropped region

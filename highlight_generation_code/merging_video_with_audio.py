@@ -33,6 +33,6 @@ def merge_videos(input_folder, output_file):
     os.remove("videos_to_merge.txt")
 
 # Usage
-input_folder = 'extracted_highlights'  # Folder containing the highlight videos
+input_folder = 'extracted_details/highlights'  # Folder containing the highlight videos
 output_file = 'merged_highlights.mp4'  # Name of the output merged video
 merge_videos(input_folder, output_file)

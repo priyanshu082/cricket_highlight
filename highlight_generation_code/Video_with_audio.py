@@ -62,7 +62,7 @@ def extract_highlight_videos(video_path, output_folder):
                     # Calculate the start and end time for the highlight
                     start_time = max(0, frame_count - len(frame_buffer)) / fps
                     end_time = frame_count / fps + 8  # Add 8 seconds post score change
-                    timestamps.append((start_time-4, end_time))
+                    timestamps.append((start_time-6, end_time))
                     
                     print(f"Score change detected: {score_history[-1]} to {current_score}. Highlight from {start_time-4} to {end_time} seconds.")
                     highlight_count += 1

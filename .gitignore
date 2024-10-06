@@ -8,3 +8,8 @@ __pycache__/
 .DS_Store
 cricket_match.mp4
 test.mp4
+*.mp4
+
+split_videos
+
+extracted_details

@@ -1,10 +1,15 @@
 import os
 import subprocess
+import re
+
+def natural_sort_key(s):
+    # This function generates keys for sorting with natural order
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
 
 def merge_videos(input_folder, output_file):
     # Get all video files from the input folder
     video_files = [f for f in os.listdir(input_folder) if f.endswith('.mp4')]
-    video_files.sort()  # Sort the files to ensure consistent order
+    video_files.sort(key=natural_sort_key)  # Use natural sort to ensure proper order
 
     if not video_files:
         print("No video files found in the input folder.")

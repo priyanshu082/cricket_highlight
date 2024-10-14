@@ -109,7 +109,7 @@ def extract_highlights(video_path: str, output_folder: str, debug: bool = True):
     
     # Setup debug folder
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    debug_folder = os.path.join(output_folder, f"debug_{timestamp}")
+    debug_folder = os.path.join(output_folder, f"debug")
     if debug:
         os.makedirs(debug_folder, exist_ok=True)
     
@@ -190,7 +190,7 @@ def extract_highlights(video_path: str, output_folder: str, debug: bool = True):
     
     # Extract highlight clips
     if highlights:
-        highlight_folder = os.path.join(output_folder, f"highlights_{timestamp}")
+        highlight_folder = os.path.join(output_folder, f"highlights")
         os.makedirs(highlight_folder, exist_ok=True)
         
         for idx, highlight in enumerate(highlights, 1):
@@ -211,7 +211,7 @@ def extract_highlights(video_path: str, output_folder: str, debug: bool = True):
     return len(highlights)
 
 if __name__ == "__main__":
-    video_path = 'test.mp4'
+    video_path = '10_min.mp4'
     output_folder = 'extracted_details'
     
     print("Starting highlight extraction...")

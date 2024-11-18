@@ -92,6 +92,9 @@ class OptimizedScoreboardOCR:
         
         if self.last_valid_score:
             last_runs, last_wickets = map(int, self.last_valid_score.split('-'))
+
+            if runs == 0 and wickets == 0 and (last_runs > 0 or last_wickets > 0):
+                return True
             
             if runs < last_runs or wickets < last_wickets:
                 return False
@@ -134,7 +137,7 @@ def extract_highlights(video_path: str, output_folder: str, debug: bool = True):
             frame_count += 1
             
             # Process every 15th frame for efficiency
-            if frame_count % 15 == 0:
+            if frame_count % 60 == 0:
                 current_score_text = ocr.extract_score(frame)
                 
                 # Log progress
@@ -154,7 +157,7 @@ def extract_highlights(video_path: str, output_folder: str, debug: bool = True):
                         if runs_diff in {4, 6} or wickets_diff > 0:
                             event_frame = frame_count
                             before_time = 8  # 8 seconds before
-                            after_time = 5   # 5 seconds after
+                            after_time = 8   # 5 seconds after
                             
                             start_frame = max(1, event_frame - (fps * before_time))
                             end_frame = min(total_frames, event_frame + (fps * after_time))
@@ -211,7 +214,7 @@ def extract_highlights(video_path: str, output_folder: str, debug: bool = True):
     return len(highlights)
 
 if __name__ == "__main__":
-    video_path = '10_min.mp4'
+    video_path = '200_min.mp4'
     output_folder = 'extracted_details'
     
     print("Starting highlight extraction...")
